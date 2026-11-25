@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>X🍎 仕分けファクトリー</title>
+<style>
+  * {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    background: #0f172a;
+    color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #1e293b;
+    border-bottom: 2px solid #334155;
+    z-index: 10;
+  }
+  .hud-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 72px;
+  }
+  .hud-label {
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  .hud-val {
+    font-size: 20px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+  }
+  #speed-val {
+    color: #38bdf8;
+    transition: color 0.3s;
+  }
+  #speed-val.fast { color: #f59e0b; }
+  #speed-val.overdrive { color: #ef4444; }
+  #lives {
+    font-size: 16px;
+    letter-spacing: 2px;
+  }
+  #combo-badge {
+    position: absolute;
+    top: 72px;
+    right: 16px;
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    color: #fff;
+    font-weight: 900;
+    font-size: 15px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.15s, transform 0.15s;
+    z-index: 15;
+  }
+  #combo-badge.active {
+    opacity: 1;
+    transform: scale(1);
+  }
+  #speed-alert {
+    position: absolute;
+    top: 72px;
+    left: 16px;
+    background: rgba(239, 68, 68, 0.9);
+    color: #fff;
+    font-weight: 900;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 15;
+  }
+  #speed-alert.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  #game-area {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+  }
+  #conveyor {
+    position: relative;
+    width: 100%;
+    height: 130px;
+    background: #334155;
+    border-top: 6px solid #475569;
+    border-bottom: 6px solid #475569;
+    box-shadow: inset 0 12px 24px rgba(0,0,0,0.45), 0 10px 30px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
+  #conveyor.overdrive {
+    border-color: #ef4444;
+    box-shadow: inset 0 12px 24px rgba(0,0,0,0.45), 0 0 28px rgba(239, 68, 68, 0.45);
+  }
+  #belt-stripes {
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0.35) 0px,
+      rgba(15, 23, 42, 0.35) 24px,
+      transparent 24px,
+      transparent 60px
+    );
+    background-size: 60px 100%;
+    pointer-events: none;
+  }
+  #x-gate {
+    position: relative;
+    z-index: 8;
+    width: 112px;
+    height: 156px;
+    margin-left: 12px;
+    background: linear-gradient(145deg, #020617, #1e293b);
+    border: 3px solid #38bdf8;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+    flex-shrink: 0;
+  }
+  #x-logo {
+    font-size: 46px;
+    font-weight: 900;
+    line-height: 1;
+    color: #fff;
+  }
+  #x-preview {
+    font-size: 20px;
+    margin-top: 4px;
+    letter-spacing: 2px;
+    color: #94a3b8;
+  }
+  #gate-line {
+    position: absolute;
+    left: 132px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: repeating-linear-gradient(
+      to bottom,
+      #38bdf8 0px,
+      #38bdf8 10px,
+      transparent 10px,
+      transparent 20px
+    );
+    opacity: 0.6;
+    z-index: 4;
+  }
+  .item {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 56px;
+    width: 82px;
+    height: 82px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 6;
+    transition: transform 0.08s;
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,0.45));
+  }
+  .item:active {
+    transform: translate(-50%, -50%) scale(0.88);
+  }
+  .fx-pop {
+    position: absolute;
+    font-weight: 900;
+    font-size: 20px;
+    pointer-events: none;
+    z-index: 20;
+    animation: floatUp 0.65s ease-out forwards;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translate(-50%, -20px) scale(0.9); }
+    100% { opacity: 0; transform: translate(-50%, -85px) scale(1.15); }
+  }
+  .tossed {
+    position: absolute;
+    font-size: 54px;
+    pointer-events: none;
+    z-index: 12;
+    transition: transform 0.38s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.38s ease-out;
+  }
+  #guide-bar {
+    text-align: center;
+    padding: 12px 16px 20px;
+    font-size: 13px;
+    color: #cbd5e1;
+    background: #1e293b;
+    border-top: 1px solid #334155;
+  }
+  #guide-bar strong {
+    color: #f87171;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .hidden {
+    display: none !important;
+  }
+  .card {
+    background: #1e293b;
+    border: 2px solid #334155;
+    border-radius: 24px;
+    padding: 28px 22px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+  }
+  .title-logo {
+    font-size: 48px;
+    font-weight: 900;
+    margin-bottom: 4px;
+  }
+  .card h1 {
+    font-size: 22px;
+    margin: 0 0 12px;
+    color: #f8fafc;
+  }
+  .rules {
+    text-align: left;
+    background: #0f172a;
+    padding: 14px 16px;
+    border-radius: 14px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: #cbd5e1;
+    margin-bottom: 20px;
+  }
+  .rules li {
+    margin-bottom: 4px;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: transform 0.1s, opacity 0.15s;
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(239, 68, 68, 0.4);
+  }
+  .btn-x {
+    background: #000;
+    color: #fff;
+    border: 1px solid #475569;
+  }
+  .btn-sub {
+    background: #334155;
+    color: #f8fafc;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .stat-item {
+    background: #0f172a;
+    padding: 10px;
+    border-radius: 12px;
+  }
+  .stat-item span {
+    display: block;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+  .stat-item strong {
+    font-size: 18px;
+    color: #f8fafc;
+  }
+  #final-score {
+    font-size: 38px;
+    font-weight: 900;
+    color: #fbbf24;
+    margin: 4px 0;
+  }
+  #rank-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: #38bdf8;
+    color: #0f172a;
+    font-weight: 900;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="hud-box">
+    <span class="hud-label">TIME</span>
+    <span class="hud-val" id="time-val">60.0</span>
+  </div>
+  <div class="hud-box">
+    <span class="hud-label">SPEED</span>
+    <span class="hud-val" id="speed-val">1.0x</span>
+  </div>
+  <div class="hud-box">
+    <span class="hud-label">SCORE</span>
+    <span class="hud-val" id="score-val">0</span>
+  </div>
+  <div class="hud-box">
+    <span class="hud-label">LIFE</span>
+    <span class="hud-val" id="lives">❤️❤️❤️❤️❤️</span>
+  </div>
+</div>
+
+<div id="combo-badge">0 COMBO!</div>
+<div id="speed-alert">⚡ SPEED UP!</div>
+
+<div id="game-area">
+  <div id="gate-line"></div>
+  <div id="conveyor">
+    <div id="belt-stripes"></div>
+    <div id="x-gate">
+      <div id="x-logo">X</div>
+      <div id="x-preview">🍎待ち</div>
+    </div>
+  </div>
+</div>
+
+<div id="guide-bar">
+  <strong>🍎だけ</strong>そのまま通過！それ以外は<strong>タップ or フリック</strong>で弾き飛ばせ！
+</div>
+
+<!-- スタート画面 -->
+<div id="start-modal" class="overlay">
+  <div class="card">
+    <div class="title-logo">X🍎</div>
+    <h1>X🍎 仕分けファクトリー</h1>
+    <ul class="rules">
+      <li>ベルトから流れてくる絵文字を仕分けよう！</li>
+      <li>本物の<strong>「🍎（赤リンゴ）」だけ</strong>Xの隣へ通す。</li>
+      <li>🍓・❤️・🍏など<strong>🍎以外はすべてタップかフリックで弾く！</strong></li>
+      <li>時間が経つほどベルトが<strong>超加速</strong>！</li>
+      <li>ミス<strong>5回</strong>で即終了。少ないミスで完走すると高得点ボーナス！</li>
+    </ul>
+    <button class="btn btn-primary" id="start-btn">ゲームスタート</button>
+  </div>
+</div>
+
+<!-- リザルト画面 -->
+<div id="result-modal" class="overlay hidden">
+  <div class="card">
+    <div id="rank-badge">ランク S</div>
+    <h1 id="result-title">TIME UP!</h1>
+    <div id="final-score">0</div>
+    <div class="stat-grid">
+      <div class="stat-item"><span>出荷した🍎</span><strong id="stat-apples">0個</strong></div>
+      <div class="stat-item"><span>最大コンボ</span><strong id="stat-combo">0</strong></div>
+      <div class="stat-item"><span>ミス回数</span><strong id="stat-miss">0 / 5</strong></div>
+      <div class="stat-item"><span>少ミスボーナス</span><strong id="stat-bonus">+0</strong></div>
+    </div>
+    <button class="btn btn-x" id="share-x-btn">𝕏 で結果をポストする</button>
+    <button class="btn btn-sub" id="copy-btn">結果をコピー</button>
+    <button class="btn btn-primary" id="retry-btn">もう一回プレイ</button>
+  </div>
+</div>
+
+<script>
+  const RED_TRAPS = ['🍓', '❤️', '🍒', '🍅', '🌹', '🎈', '🦀', '🌶️', '🍉', '🐙'];
+  const OTHER_ITEMS = ['🍏', '🍊', '🍋', '🍇', '🍑', '🍌', '🥝', '🍩', '💎', '⭐'];
+
+  const gameArea = document.getElementById('game-area');
+  const conveyor = document.getElementById('conveyor');
+  const beltStripes = document.getElementById('belt-stripes');
+  const timeVal = document.getElementById('time-val');
+  const speedVal = document.getElementById('speed-val');
+  const scoreVal = document.getElementById('score-val');
+  const livesEl = document.getElementById('lives');
+  const comboBadge = document.getElementById('combo-badge');
+  const speedAlert = document.getElementById('speed-alert');
+  const xPreview = document.getElementById('x-preview');
+
+  const startModal = document.getElementById('start-modal');
+  const resultModal = document.getElementById('result-modal');
+
+  let audioCtx = null;
+  function playTone(freq, type = 'sine', duration = 0.1, vol = 0.12) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    } catch (e) {}
+  }
+
+  let state = {};
+  let animId = null;
+
+  function resetState() {
+    state = {
+      running: true,
+      timeLeft: 60.0,
+      score: 0,
+      misses: 0,
+      maxMisses: 5,
+      combo: 0,
+      maxCombo: 0,
+      applesPassed: 0,
+      speedMult: 1.0,
+      lastSpeedMilestone: 1.0,
+      stripeOffset: 0,
+      spawnTimer: 0,
+      items: [],
+      lastTime: performance.now()
+    };
+    conveyor.classList.remove('overdrive');
+    speedVal.className = 'hud-val';
+    xPreview.textContent = '🍎待ち';
+    updateHUD();
+  }
+
+  function updateHUD() {
+    timeVal.textContent = Math.max(0, state.timeLeft).toFixed(1);
+    speedVal.textContent = state.speedMult.toFixed(1) + 'x';
+    scoreVal.textContent = state.score.toLocaleString();
+    const left = Math.max(0, state.maxMisses - state.misses);
+    livesEl.textContent = '❤️'.repeat(left) + '🖤'.repeat(state.misses);
+
+    if (state.combo >= 2) {
+      comboBadge.textContent = `${state.combo} COMBO!`;
+      comboBadge.classList.add('active');
+    } else {
+      comboBadge.classList.remove('active');
+    }
+  }
+
+  function showPop(x, y, text, color) {
+    const el = document.createElement('div');
+    el.className = 'fx-pop';
+    el.textContent = text;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.color = color;
+    gameArea.appendChild(el);
+    setTimeout(() => el.remove(), 650);
+  }
+
+  function tossAnimation(x, y, emoji, dirY) {
+    const el = document.createElement('div');
+    el.className = 'tossed';
+    el.textContent = emoji;
+    el.style.left = (x - 27) + 'px';
+    el.style.top = (y - 27) + 'px';
+    gameArea.appendChild(el);
+    requestAnimationFrame(() => {
+      const randX = (Math.random() - 0.3) * 140;
+      const rot = (Math.random() > 0.5 ? 1 : -1) * 260;
+      el.style.transform = `translate(${randX}px, ${dirY * 220}px) rotate(${rot}deg) scale(0.6)`;
+      el.style.opacity = '0';
+    });
+    setTimeout(() => el.remove(), 400);
+  }
+
+  function addScore(base, x, y) {
+    state.combo++;
+    if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+    const mult = 1 + Math.min(2.0, Math.floor(state.combo / 5) * 0.25);
+    const pts = Math.round(base * mult * (1 + (state.speedMult - 1) * 0.3));
+    state.score += pts;
+    showPop(x, y, `+${pts}`, '#4ade80');
+  }
+
+  function registerMiss(x, y, reason) {
+    state.misses++;
+    state.combo = 0;
+    playTone(150, 'sawtooth', 0.25, 0.18);
+    showPop(x, y, reason, '#f87171');
+    updateHUD();
+    if (state.misses >= state.maxMisses) {
+      endGame(false);
+    }
+  }
+
+  function spawnItem() {
+    const progress = (60 - state.timeLeft) / 60;
+    const trapChance = 0.35 + progress * 0.2;
+    const r = Math.random();
+    let emoji = '🍎';
+    let isApple = true;
+
+    if (r < 0.36) {
+      emoji = '🍎';
+      isApple = true;
+    } else if (r < 0.36 + trapChance) {
+      emoji = RED_TRAPS[Math.floor(Math.random() * RED_TRAPS.length)];
+      isApple = false;
+    } else {
+      emoji = OTHER_ITEMS[Math.floor(Math.random() * OTHER_ITEMS.length)];
+      isApple = false;
+    }
+
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.textContent = emoji;
+    const startX = gameArea.clientWidth + 45;
+    el.style.left = startX + 'px';
+    conveyor.appendChild(el);
+
+    const itemObj = {
+      el,
+      emoji,
+      isApple,
+      x: startX,
+      removed: false,
+      startY: null
+    };
+
+    const handleSort = (dirY = -1) => {
+      if (!state.running || itemObj.removed) return;
+      itemObj.removed = true;
+      const rect = el.getBoundingClientRect();
+      const areaRect = gameArea.getBoundingClientRect();
+      const cx = rect.left - areaRect.left + rect.width / 2;
+      const cy = rect.top - areaRect.top + rect.height / 2;
+      el.remove();
+
+      if (itemObj.isApple) {
+        tossAnimation(cx, cy, itemObj.emoji, dirY);
+        registerMiss(cx, cy, '🍎を弾いた！');
+      } else {
+        playTone(580 + Math.min(400, state.combo * 18), 'triangle', 0.09, 0.13);
+        tossAnimation(cx, cy, itemObj.emoji, dirY);
+        addScore(100, cx, cy);
+        updateHUD();
+      }
+    };
+
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      itemObj.startY = e.clientY;
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (itemObj.startY !== null && Math.abs(e.clientY - itemObj.startY) > 16) {
+        const dir = e.clientY < itemObj.startY ? -1 : 1;
+        itemObj.startY = null;
+        handleSort(dir);
+      }
+    });
+    el.addEventListener('pointerup', (e) => {
+      if (itemObj.startY !== null) {
+        itemObj.startY = null;
+        handleSort(-1);
+      }
+    });
+
+    state.items.push(itemObj);
+  }
+
+  function triggerSpeedAlert() {
+    speedAlert.textContent = `⚡ SPEED UP! ${state.speedMult.toFixed(1)}x`;
+    speedAlert.classList.add('show');
+    playTone(720, 'sine', 0.12, 0.1);
+    setTimeout(() => speedAlert.classList.remove('show'), 1300);
+  }
+
+  function loop(now) {
+    if (!state.running) return;
+    const dt = Math.min(0.05, (now - state.lastTime) / 1000);
+    state.lastTime = now;
+
+    state.timeLeft -= dt;
+    if (state.timeLeft <= 0) {
+      state.timeLeft = 0;
+      updateHUD();
+      endGame(true);
+      return;
+    }
+
+    const elapsed = 60 - state.timeLeft;
+    state.speedMult = 1.0 + Math.pow(elapsed / 60, 1.15) * 1.55;
+
+    if (state.speedMult >= 2.0) {
+      speedVal.className = 'hud-val overdrive';
+      conveyor.classList.add('overdrive');
+    } else if (state.speedMult >= 1.5) {
+      speedVal.className = 'hud-val fast';
+    }
+
+    if (state.speedMult - state.lastSpeedMilestone >= 0.45) {
+      state.lastSpeedMilestone = state.speedMult;
+      triggerSpeedAlert();
+    }
+
+    const basePxPerSec = 175;
+    const currentSpeed = basePxPerSec * state.speedMult;
+
+    state.stripeOffset = (state.stripeOffset - currentSpeed * dt) % 60;
+    beltStripes.style.backgroundPositionX = state.stripeOffset + 'px';
+
+    state.spawnTimer -= dt;
+    if (state.spawnTimer <= 0) {
+      spawnItem();
+      const baseInterval = 1.05 / Math.pow(state.speedMult, 0.72);
+      state.spawnTimer = Math.max(0.36, baseInterval * (0.85 + Math.random() * 0.3));
+    }
+
+    const gateX = 132;
+    const areaMidY = gameArea.clientHeight / 2;
+
+    for (let i = state.items.length - 1; i >= 0; i--) {
+      const item = state.items[i];
+      if (item.removed) {
+        state.items.splice(i, 1);
+        continue;
+      }
+      item.x -= currentSpeed * dt;
+      item.el.style.left = item.x + 'px';
+
+      if (item.x <= gateX) {
+        item.removed = true;
+        item.el.remove();
+        state.items.splice(i, 1);
+
+        if (item.isApple) {
+          state.applesPassed++;
+          xPreview.textContent = 'X🍎 完成!';
+          playTone(880, 'sine', 0.12, 0.12);
+          addScore(150, gateX + 20, areaMidY - 30);
+          updateHUD();
+        } else {
+          xPreview.textContent = `X${item.emoji} 💥`;
+          registerMiss(gateX + 20, areaMidY - 30, `${item.emoji}が混入！`);
+        }
+      }
+    }
+
+    updateHUD();
+    animId = requestAnimationFrame(loop);
+  }
+
+  function endGame(cleared) {
+    state.running = false;
+    cancelAnimationFrame(animId);
+
+    let bonus = 0;
+    if (cleared) {
+      const bonusTable = [5000, 3000, 1500, 500, 100];
+      bonus = bonusTable[state.misses] || 0;
+      state.score += bonus;
+    }
+
+    let rank = 'C';
+    if (state.score >= 16000) rank = 'SSS（神職人）';
+    else if (state.score >= 12000) rank = 'S（プロ仕分け師）';
+    else if (state.score >= 8000) rank = 'A（熟練スタッフ）';
+    else if (state.score >= 4500) rank = 'B（見習い）';
+
+    document.getElementById('result-title').textContent = cleared ? '🎉 SHIFT COMPLETE!' : '💥 GAME OVER';
+    document.getElementById('rank-badge').textContent = `ランク ${rank}`;
+    document.getElementById('final-score').textContent = `${state.score.toLocaleString()} pts`;
+    document.getElementById('stat-apples').textContent = `${state.applesPassed}個`;
+    document.getElementById('stat-combo').textContent = `${state.maxCombo}連鎖`;
+    document.getElementById('stat-miss').textContent = `${state.misses} / 5`;
+    document.getElementById('stat-bonus').textContent = `+${bonus.toLocaleString()}`;
+
+    resultModal.classList.remove('hidden');
+  }
+
+  function getShareText() {
+    return `【X🍎 仕分けファクトリー】\nスコア：${state.score.toLocaleString()} pts（ミス ${state.misses}回 / 最大${state.maxCombo}コンボ）\nXの隣に🍎だけを届けました！\n#Xリンゴ仕分け`;
+  }
+
+  document.getElementById('start-btn').addEventListener('click', () => {
+    startModal.classList.add('hidden');
+    document.querySelectorAll('.item').forEach(el => el.remove());
+    resetState();
+    animId = requestAnimationFrame(loop);
+  });
+
+  document.getElementById('retry-btn').addEventListener('click', () => {
+    resultModal.classList.add('hidden');
+    document.querySelectorAll('.item').forEach(el => el.remove());
+    resetState();
+    animId = requestAnimationFrame(loop);
+  });
+
+  document.getElementById('share-x-btn').addEventListener('click', () => {
+    const text = encodeURIComponent(getShareText());
+    const url = encodeURIComponent(window.location.href.startsWith('http') ? window.location.href : '');
+    const intent = url ? `https://twitter.com/intent/tweet?text=${text}&url=${url}` : `https://twitter.com/intent/tweet?text=${text}`;
+    window.open(intent, '_blank');
+  });
+
+  document.getElementById('copy-btn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(getShareText());
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'コピーしました！';
+      setTimeout(() => btn.textContent = '結果をコピー', 1800);
+    } catch (e) {}
+  });
+</script>
+</body>
+</html>
